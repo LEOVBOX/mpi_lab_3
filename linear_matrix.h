@@ -9,5 +9,6 @@ void scan_linear_matrix(double* matrix, int n, int k);
 void print_array(double* array, int n);
 double mult_linear_matrix_vectors(double* horizontal_vec, double* vertical_vec, int n);
 double* mult_matrix(double* matrix1, double* matrix2, int n1, int n2, int n3);
+void fscan_linear_matrix(FILE* fd, double* matrix, int n, int k);
 
 #endif //MPI_LAB_3_LINEAR_MATRIX_H

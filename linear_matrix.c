@@ -7,10 +7,18 @@
 
 void scan_linear_matrix(double* matrix, int n, int k)
 {
-	double cur_num;
 	for (int i = 0; i < n*k; i++)
 	{
 		scanf("%lf", &matrix[i]);
+	}
+}
+
+void fscan_linear_matrix(FILE* fd, double* matrix, int n, int k)
+{
+	double cur_num;
+	for (int i = 0; i < n*k; i++)
+	{
+		fscanf(fd, "%lf", &matrix[i]);
 	}
 }
 
