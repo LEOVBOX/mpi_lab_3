@@ -9,6 +9,7 @@
 
 #define Y 0
 #define X 1
+#define ROOT 0
 
 void create_grid(int procs_num, int* dims, int* size_y, int* size_x, MPI_Comm *comm2d)
 {
@@ -74,21 +75,27 @@ void matrix_partition(double* Matrix, int N, int K, int* lines_per_proc, double*
 
 	for (int i = 0; i < dim; i++)
 	{
-		send_count[i] = lines_per_proc[i] * N;
-		send_offset[i] = i * lines_per_proc[i] * K;
-
+		send_count[i] = lines_per_proc[i] * K;
+		if (i > 0)
+		{
+			send_offset[i] = i * lines_per_proc[i - 1] * K;
+		}
+		else
+		{
+			send_offset[i] = 0;
+		}
 	}
 
-	/*for (int i = 0; i < dim; i++)
+	for (int i = 0; i < dim; i++)
 	{
 		printf("%d %d send_offset[%d]: %d\n", rank_x, rank_y, i, send_offset[i]);
 		printf("%d %d send count[%d]: %d\n", rank_x, rank_y, i, send_count[i]);
-	}*/
+	}
 	printf("\n");
 	if (MPI_Scatterv(Matrix, send_count, send_offset, MPI_DOUBLE, sub_matrix,
-			send_count[rank_x], MPI_DOUBLE, 0, comm) == MPI_SUCCESS)
+			send_count[rank_y], MPI_DOUBLE, 0, comm) == MPI_SUCCESS)
 	{
-		printf("SUCCESS! %d %d\n", rank_x, rank_y);
+		printf("Scatter SUCCESS! %d %d\n", rank_x, rank_y);
 	}
 	else
 	{
@@ -97,3 +104,5 @@ void matrix_partition(double* Matrix, int N, int K, int* lines_per_proc, double*
 	free(send_count);
 	free(send_offset);
 }
+
+
