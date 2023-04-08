@@ -3,8 +3,9 @@
 #include "mem_ops.h"
 #include <mpi.h>
 #include <string.h>
-#include "mm_malloc.h"
 #include <math.h>
+#include "my_math.h"
+#include "parallel_matrix_mult.h"
 
 #define ROOT 0
 #define X 1
@@ -45,80 +46,6 @@ int read_input_file(char* file_path, double* matrix1, double* matrix2, int n1, i
 
 	fclose(fd);
 	return 0;
-}
-
-void create_grid(int procs_num, int* dims, int* size_y, int* size_x, MPI_Comm *comm2d)
-{
-	// Определение размеров решетки: dims
-	MPI_Dims_create(procs_num, 2, dims);
-	*size_y = dims[Y];
-	*size_x = dims[X];
-
-	// Создание коммуникатора: comm2d
-	int periods[2] = {0, 0};
-	int reorder = 0;
-
-
-	if (MPI_Cart_create(MPI_COMM_WORLD, 2, dims, periods, reorder, comm2d) != MPI_SUCCESS)
-	{
-		printf("MPI_Cart_create failed\n");
-	}
-	//printf("dims: %d %d\n", dims[0], dims[1]);
-}
-
-
-
-MPI_Comm* create_comms(MPI_Comm grid_comm2d, int* dims)
-{
-	MPI_Comm* comms = (MPI_Comm*)mallocs(sizeof(MPI_Comm) * (dims[0] + dims[1]));
-	MPI_Group grid_group;
-	if (MPI_Comm_group(grid_comm2d, &grid_group) != MPI_SUCCESS)
-	{
-		printf("MPI_Comm_group failed\n");
-	}
-
-	MPI_Group buffer;
-
-	int* ranks = (int*)mallocs(sizeof(int) * dims[Y]);
-
-	int cur_proc_rank;
-	int cur_coord[2] = {0, 0};
-
-	// Создание вертикальных коммуникаторов
-	for (int x = 0; x < dims[X]; x++)
-	{
-		for (int i = 0; i < dims[Y]; i++)
-		{
-			cur_coord[X] = x;
-			cur_coord[Y] = i;
-			MPI_Cart_rank(grid_comm2d, cur_coord, &cur_proc_rank);
-			printf("cur coords: %d %d\ncur_proc_rank = %d\n", cur_coord[1], cur_coord[0], cur_proc_rank);
-			ranks[i] = cur_proc_rank;
-		}
-		MPI_Group_incl(grid_group, dims[Y], ranks, &buffer);
-		MPI_Comm_create(grid_comm2d, buffer, &comms[x]);
-	}
-
-	ranks = reallocs(ranks, sizeof(int) * dims[X]);
-
-	// Создание горизонтальных коммуникаторов
-	for (int y = 0; y < dims[Y]; y++)
-	{
-		for (int i = 0; i < dims[X]; i++)
-		{
-			cur_coord[Y] = y;
-			cur_coord[X] = i;
-			MPI_Cart_rank(grid_comm2d, cur_coord, &cur_proc_rank);
-			printf("cur coords: %d %d\ncur_proc_rank = %d\n", cur_coord[X], cur_coord[Y], cur_proc_rank);
-			ranks[i] = cur_proc_rank;
-		}
-		MPI_Group_incl(grid_group, dims[X], ranks, &buffer);
-		MPI_Comm_create(grid_comm2d, buffer, &comms[y]);
-	}
-
-	free(ranks);
-
-	return comms;
 }
 
 int main(int argc, char* argv[])
@@ -167,10 +94,29 @@ int main(int argc, char* argv[])
 	//printf("grid_comm_size = %d\n", grid_comm_size);
 	MPI_Cart_coords(grid_comm2d, comm2d_rank, 2, coords);
 
-	printf("rank %d coords: %d %d\n", rank, coords[0], coords[1]);
+	printf("rank %d coords: %d %d\n", rank, coords[X], coords[Y]);
 
-	MPI_Comm* comms = create_comms(grid_comm2d, dims);
+	rank_x = coords[X];
+	rank_y = coords[Y];
 
+	// Создание коммуникаторов для пересылки по решетке
+	MPI_Comm* comms_x = create_comms(grid_comm2d, dims, X);
+	MPI_Comm* comms_y = create_comms(grid_comm2d, dims, Y);
+
+	// Массивы содержащие количество строк(колонок) матриц для каждого процесса решетки
+	int* matrix1_summands;
+	int* matrix2_summands;
+	matrix1_summands = generate_summands(n1, dims[Y]);
+	matrix2_summands = generate_summands(n2, dims[X]);
+	printf("Summnds created\n");
+
+
+	// Матрицы для перемножения
+	double* matrix1 = NULL;
+	double* matrix2 = NULL;
+
+	double* sub_matrix1 = (double*)mallocs(matrix1_summands[rank_y] * n2 * sizeof(double));
+	double* sub_matrix2 = (double*)mallocs(matrix1_summands[rank_x] * n2 * sizeof(double));
 
 	if (rank == ROOT)
 	{
@@ -180,22 +126,29 @@ int main(int argc, char* argv[])
 			return 1;
 		}
 
-
-		double* matrix1 = (double*)mallocs(n1 * n2 * sizeof(double));
-		double* matrix2 = (double*)mallocs(n2 * n3 * sizeof(double));
+		matrix1 = reallocs(matrix1, n1 * n2 * sizeof(double));
+		matrix2 = reallocs(matrix2, n2 * n3 * sizeof(double));
 
 		printf("malloced\n");
 
 		read_input_file("input.txt", matrix1, matrix2, n1, n2, n3);
 
 		printf("file read\n");
+	}
 
+	if (rank_x == 0)
+		matrix_partition(matrix1, n1, n2, matrix1_summands, sub_matrix1, rank_y, rank_x, dims[Y], comms_x[0]);
 
+	print_matrix(sub_matrix1, matrix1_summands[rank_y], n2);
+
+	if (rank == ROOT)
+	{
 		free(matrix1);
 		free(matrix2);
 	}
 
-	free(comms);
+	free(comms_x);
+	free(comms_y);
 	MPI_Finalize();
 
 	return 0;
