@@ -47,9 +47,14 @@ int read_input_file(char* file_path, double* matrix1, double* matrix2, int n1, i
 	return 0;
 }
 
+
 int main(int argc, char* argv[])
 {
-
+	if (argc < 4)
+	{
+		printf("Few arguments\n");
+		exit(-1);
+	}
 	int procs_num = 0;
 	int rank = -1;
 
@@ -125,46 +130,42 @@ int main(int argc, char* argv[])
 	double* tr_matrix_B = NULL;
 
 	double* sub_matrix_A = (double*)mallocs(matrix_A_summands[rank_y] * n2 * sizeof(double));
+	//printf("process %d: submatrix_A size = %d * n2\n", rank, matrix_A_summands[rank_y]);
 	double* sub_matrix_B = (double*)mallocs(matrix_A_summands[rank_x] * n2 * sizeof(double));
+	//printf("process %d: submatrix_B size = %d * n2\n", rank, matrix_A_summands[rank_y]);
 
 	// Инициализация матриц
 	if (rank == ROOT)
 	{
-		if (argc < 3)
-		{
-			printf("Few args\n");
-			return 1;
-		}
+		matrix_A = (double*)mallocs(n1 * n2 * sizeof(double));
+		matrix_B = (double*)mallocs(n2 * n3 * sizeof(double));
 
-		matrix_A = reallocs(matrix_A, n1 * n2 * sizeof(double));
-		matrix_B = reallocs(matrix_B, n2 * n3 * sizeof(double));
-
-		//printf("malloced\n");
 		matrix_A = crt_default_matrix(n1, n2);
 		matrix_B = crt_default_matrix(n2, n3);
 		matrix_Res = (double*)mallocs(sizeof(double) * n1 * n3);
 		//read_input_file("input2.txt", matrix_A, matrix_B, n1, n2, n3);
 
 		// DEBUG BEGIN
-		/*printf("matrix_B:\n");
-		print_matrix(matrix_B, n2, n3);
-		printf("\n");
-
-
-		printf("matrix_A:\n");
-		print_matrix(matrix_A, n1, n2);
-		printf("\n");*/
+//		printf("matrix_B:\n");
+//		print_matrix(matrix_B, n2, n3);
+//		printf("\n");
+//
+//
+//		printf("matrix_A:\n");
+//		print_matrix(matrix_A, n1, n2);
+//		printf("\n");
 		// DEBUG END
-
 		tr_matrix_B = (double*)mallocs(n3 * n2 * sizeof(double));
 		transpose_linear_matrix(matrix_B, n2, n3, tr_matrix_B);
 		free(matrix_B);
-
-		/*printf("tr_matrix_B:\n");
-		print_matrix(tr_matrix_B, n3, n2);
-
-		printf("file read\n");*/
 	}
+
+
+
+	/*printf("tr_matrix_B:\n");
+	print_matrix(tr_matrix_B, n3, n2);
+
+	printf("file read\n");*/
 
 	// Рассылка подматриц по процессам
 	if (rank_x == 0)
@@ -176,12 +177,13 @@ int main(int argc, char* argv[])
 	{
 		matrix_partition(tr_matrix_B, n2, matrix_B_summands, sub_matrix_B, rank_x, rank_y, dims[X], row_comms);
 	}
+	//printf("Partitoin success\n");
 
 	// Транслирование подматриц по столбцам (строкам) решетки
 	data_broadcast(sub_matrix_A, sub_matrix_B, rank_y, rank_x, matrix_A_summands, matrix_B_summands, dims, n2, row_comms, col_comms);
 
 	// DEBUG BEGIN
-
+//	printf("Data broadcast success\n");
 //	printf("(x = %d, y = %d) subm1:\n", rank_x, rank_y);
 //	print_matrix(sub_matrix_A, matrix_A_summands[rank_y], n2);
 //	printf("\n");
@@ -194,7 +196,7 @@ int main(int argc, char* argv[])
 
 	// Перемножение подматриц
 	double* sub_matrix_Res = mult_matrix(sub_matrix_A, sub_matrix_B, matrix_A_summands[rank_y], n2, matrix_B_summands[rank_x]);
-
+//	printf("Multiplication success\n");
 	// DEBUG BEGIN
 //	printf("(x = %d, y = %d) result:\n", rank_x, rank_y);
 //	print_matrix(sub_matrix_Res, matrix_A_summands[rank_y], matrix_B_summands[rank_y]);
@@ -206,8 +208,6 @@ int main(int argc, char* argv[])
 			dims, grid_comm);
 
 	//printf("Collect success\n %d", rank);
-
-
 
 
 	free(matrix_Res);
