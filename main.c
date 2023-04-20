@@ -47,7 +47,6 @@ int read_input_file(char* file_path, double* matrix1, double* matrix2, int n1, i
 	return 0;
 }
 
-
 int main(int argc, char* argv[])
 {
 
@@ -61,12 +60,11 @@ int main(int argc, char* argv[])
 		printf("Mpi Initialisation error\n");
 		MPI_Abort(MPI_COMM_WORLD, rc);
 	}
-
 	// Получение числа инициализированных процессов.
 	MPI_Comm_size(MPI_COMM_WORLD, &procs_num);
 	// Получение номера данного процесса.
 	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-
+	double start_time = MPI_Wtime();
 
 	// Чтение параметров матриц
 	int n1 = string_to_int(argv[argc - 3]);
@@ -141,7 +139,7 @@ int main(int argc, char* argv[])
 		matrix_A = reallocs(matrix_A, n1 * n2 * sizeof(double));
 		matrix_B = reallocs(matrix_B, n2 * n3 * sizeof(double));
 
-		printf("malloced\n");
+		//printf("malloced\n");
 		matrix_A = crt_default_matrix(n1, n2);
 		matrix_B = crt_default_matrix(n2, n3);
 		matrix_Res = (double*)mallocs(sizeof(double) * n1 * n3);
@@ -184,13 +182,13 @@ int main(int argc, char* argv[])
 
 	// DEBUG BEGIN
 
-	printf("(x = %d, y = %d) subm1:\n", rank_x, rank_y);
-	print_matrix(sub_matrix_A, matrix_A_summands[rank_y], n2);
-	printf("\n");
-
-	printf("(y = %d, x = %d) subm2:\n", rank_y, rank_x);
-	print_matrix(sub_matrix_B, matrix_B_summands[rank_x], n2);
-	printf("\n");
+//	printf("(x = %d, y = %d) subm1:\n", rank_x, rank_y);
+//	print_matrix(sub_matrix_A, matrix_A_summands[rank_y], n2);
+//	printf("\n");
+//
+//	printf("(y = %d, x = %d) subm2:\n", rank_y, rank_x);
+//	print_matrix(sub_matrix_B, matrix_B_summands[rank_x], n2);
+//	printf("\n");
 
 	// DEBUG END
 
@@ -210,13 +208,7 @@ int main(int argc, char* argv[])
 	//printf("Collect success\n %d", rank);
 
 
-	if (rank == ROOT)
-	{
-		print_matrix(matrix_Res, n1, n3);
-		free(matrix_A);
-		free(tr_matrix_B);
 
-	}
 
 	free(matrix_Res);
 	free(matrix_A_summands);
@@ -224,6 +216,16 @@ int main(int argc, char* argv[])
 	free(sub_matrix_B);
 	free(col_comms);
 	free(row_comms);
+	double end_time = MPI_Wtime();
+
+	if (rank == ROOT)
+	{
+		//print_matrix(matrix_Res, n1, n3);
+		free(matrix_A);
+		free(tr_matrix_B);
+		printf("TIME: %lf\n", end_time - start_time);
+	}
+
 	MPI_Finalize();
 
 
