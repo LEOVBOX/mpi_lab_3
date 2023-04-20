@@ -3,7 +3,6 @@
 #include "mem_ops.h"
 #include <mpi.h>
 #include <string.h>
-#include <math.h>
 #include "my_math.h"
 #include "parallel_matrix_mult.h"
 
@@ -48,12 +47,12 @@ int read_input_file(char* file_path, double* matrix1, double* matrix2, int n1, i
 	return 0;
 }
 
+
 int main(int argc, char* argv[])
 {
 
 	int procs_num = 0;
 	int rank = -1;
-	MPI_Status status;
 
 	// Инициализация MPI. Указываем сколько процессов должно создаться.
 	int rc = MPI_Init(&argc, &argv);
@@ -79,45 +78,58 @@ int main(int argc, char* argv[])
 
 
 	// Параметры решетки
-	int size, size_x, size_y, rank_x, rank_y, comm2d_rank;
-	int prev_x, prev_y, next_x, next_y;
+	int world_size, size_x, size_y, rank_x, rank_y, grid_comm_rank;
 	int coords[2];
 	int dims[2] = {0, 0};
 
 	// Создание решетки
-	MPI_Comm grid_comm2d;
-	MPI_Comm_size(MPI_COMM_WORLD, &size);
-	create_grid(procs_num, dims, &size_y, &size_x, &grid_comm2d);
-	MPI_Comm_rank(grid_comm2d, &comm2d_rank);
+	MPI_Comm grid_comm;
+	MPI_Comm_size(MPI_COMM_WORLD, &world_size);
+	create_grid(procs_num, dims, &size_y, &size_x, &grid_comm);
+	MPI_Comm_rank(grid_comm, &grid_comm_rank);
 	int grid_comm_size = 0;
-	MPI_Comm_size(grid_comm2d, &grid_comm_size);
+	MPI_Comm_size(grid_comm, &grid_comm_size);
 	//printf("grid_comm_size = %d\n", grid_comm_size);
-	MPI_Cart_coords(grid_comm2d, comm2d_rank, 2, coords);
+	MPI_Cart_coords(grid_comm, grid_comm_rank, 2, coords);
 
-	printf("rank %d coords: %d %d\n", rank, coords[X], coords[Y]);
+	//printf("rank %d coords: %d %d\n", rank, coords[X], coords[Y]);
 
 	rank_x = coords[X];
 	rank_y = coords[Y];
 
 	// Создание коммуникаторов для пересылки по решетке
-	MPI_Comm* comms_x = create_comms(grid_comm2d, dims, X);
-	MPI_Comm* comms_y = create_comms(grid_comm2d, dims, Y);
+	MPI_Comm* col_comms = create_comms(grid_comm, dims, X);
+	MPI_Comm* row_comms = create_comms(grid_comm, dims, Y);
 
 	// Массивы содержащие количество строк(колонок) матриц для каждого процесса решетки
-	int* matrix1_summands;
-	int* matrix2_summands;
-	matrix1_summands = generate_summands(n1, dims[Y]);
-	matrix2_summands = generate_summands(n2, dims[X]);
-	printf("Summnds created\n");
+	int* matrix_A_summands = generate_summands(n1, dims[Y]);
+	if (matrix_A_summands == NULL)
+	{
+		exit(-1);
+	}
+	int* matrix_B_summands = generate_summands(n3, dims[X]);
+	if (matrix_B_summands == NULL)
+	{
+		exit(-1);
+	}
+
+	// DEBUG BEGIN
+//	print_int_array(matrix_B_summands, dims[X]);
+//	printf("\n");
+	//printf("Summnds created\n");
+	// DEBUG END
 
 
 	// Матрицы для перемножения
-	double* matrix1 = NULL;
-	double* matrix2 = NULL;
+	double* matrix_A = NULL;
+	double* matrix_B = NULL;
+	double* matrix_Res = NULL;
+	double* tr_matrix_B = NULL;
 
-	double* sub_matrix1 = (double*)mallocs(matrix1_summands[rank_y] * n2 * sizeof(double));
-	double* sub_matrix2 = (double*)mallocs(matrix1_summands[rank_x] * n2 * sizeof(double));
+	double* sub_matrix_A = (double*)mallocs(matrix_A_summands[rank_y] * n2 * sizeof(double));
+	double* sub_matrix_B = (double*)mallocs(matrix_A_summands[rank_x] * n2 * sizeof(double));
 
+	// Инициализация матриц
 	if (rank == ROOT)
 	{
 		if (argc < 3)
@@ -126,30 +138,95 @@ int main(int argc, char* argv[])
 			return 1;
 		}
 
-		matrix1 = reallocs(matrix1, n1 * n2 * sizeof(double));
-		matrix2 = reallocs(matrix2, n2 * n3 * sizeof(double));
+		matrix_A = reallocs(matrix_A, n1 * n2 * sizeof(double));
+		matrix_B = reallocs(matrix_B, n2 * n3 * sizeof(double));
 
 		printf("malloced\n");
+		matrix_A = crt_default_matrix(n1, n2);
+		matrix_B = crt_default_matrix(n2, n3);
+		matrix_Res = (double*)mallocs(sizeof(double) * n1 * n3);
+		//read_input_file("input2.txt", matrix_A, matrix_B, n1, n2, n3);
 
-		read_input_file("input.txt", matrix1, matrix2, n1, n2, n3);
+		// DEBUG BEGIN
+		/*printf("matrix_B:\n");
+		print_matrix(matrix_B, n2, n3);
+		printf("\n");
 
-		printf("file read\n");
+
+		printf("matrix_A:\n");
+		print_matrix(matrix_A, n1, n2);
+		printf("\n");*/
+		// DEBUG END
+
+		tr_matrix_B = (double*)mallocs(n3 * n2 * sizeof(double));
+		transpose_linear_matrix(matrix_B, n2, n3, tr_matrix_B);
+		free(matrix_B);
+
+		/*printf("tr_matrix_B:\n");
+		print_matrix(tr_matrix_B, n3, n2);
+
+		printf("file read\n");*/
 	}
 
+	// Рассылка подматриц по процессам
 	if (rank_x == 0)
-		matrix_partition(matrix1, n1, n2, matrix1_summands, sub_matrix1, rank_y, rank_x, dims[Y], comms_x[0]);
+	{
+		matrix_partition(matrix_A, n2, matrix_A_summands, sub_matrix_A, rank_y, rank_x, dims[Y], col_comms);
+	}
 
-	print_matrix(sub_matrix1, matrix1_summands[rank_y], n2);
+	if(rank_y == 0)
+	{
+		matrix_partition(tr_matrix_B, n2, matrix_B_summands, sub_matrix_B, rank_x, rank_y, dims[X], row_comms);
+	}
+
+	// Транслирование подматриц по столбцам (строкам) решетки
+	data_broadcast(sub_matrix_A, sub_matrix_B, rank_y, rank_x, matrix_A_summands, matrix_B_summands, dims, n2, row_comms, col_comms);
+
+	// DEBUG BEGIN
+
+	printf("(x = %d, y = %d) subm1:\n", rank_x, rank_y);
+	print_matrix(sub_matrix_A, matrix_A_summands[rank_y], n2);
+	printf("\n");
+
+	printf("(y = %d, x = %d) subm2:\n", rank_y, rank_x);
+	print_matrix(sub_matrix_B, matrix_B_summands[rank_x], n2);
+	printf("\n");
+
+	// DEBUG END
+
+	// Перемножение подматриц
+	double* sub_matrix_Res = mult_matrix(sub_matrix_A, sub_matrix_B, matrix_A_summands[rank_y], n2, matrix_B_summands[rank_x]);
+
+	// DEBUG BEGIN
+//	printf("(x = %d, y = %d) result:\n", rank_x, rank_y);
+//	print_matrix(sub_matrix_Res, matrix_A_summands[rank_y], matrix_B_summands[rank_y]);
+//	printf("\n");
+	// DEBUG END
+
+	// Сбор матрицы
+	collect_res_matrix(matrix_A_summands[rank_y], matrix_B_summands[rank_x], n3, rank, procs_num, matrix_Res, sub_matrix_Res,
+			dims, grid_comm);
+
+	//printf("Collect success\n %d", rank);
+
 
 	if (rank == ROOT)
 	{
-		free(matrix1);
-		free(matrix2);
+		print_matrix(matrix_Res, n1, n3);
+		free(matrix_A);
+		free(tr_matrix_B);
+
 	}
 
-	free(comms_x);
-	free(comms_y);
+	free(matrix_Res);
+	free(matrix_A_summands);
+	free(sub_matrix_A);
+	free(sub_matrix_B);
+	free(col_comms);
+	free(row_comms);
 	MPI_Finalize();
+
+
 
 	return 0;
 }
