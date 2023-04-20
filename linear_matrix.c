@@ -5,6 +5,15 @@
 #include "mem_ops.h"
 #include <stdio.h>
 
+void print_array(double* array, int n)
+{
+	for (int i = 0; i < n; i++)
+	{
+		printf("%lf ", array[i]);
+	}
+	printf("\n");
+}
+
 void scan_linear_matrix(double* matrix, int n, int k)
 {
 	for (int i = 0; i < n*k; i++)
@@ -22,6 +31,29 @@ void fscan_linear_matrix(FILE* fd, double* matrix, int n, int k)
 	}
 }
 
+void print_matrix(double* matrix, int rows, int cols)
+{
+	for (int i = 0; i < rows; i++)
+	{
+		for (int j = 0; j < cols; j++)
+		{
+			printf("%lf ", matrix[i * cols + j]);
+		}
+		printf("\n");
+	}
+}
+
+void transpose_linear_matrix(double* matrix, int rows, int cols, double* result)
+{
+	for (int i = 0; i < rows; i++)
+	{
+		for (int j = 0; j < cols; j++)
+		{
+			result[j * rows + i] = matrix[i * cols + j];
+		}
+	}
+}
+
 double mult_linear_matrix_vectors(double* horizontal_vec, double* vertical_vec, int n2, int n3)
 {
 	double result = 0;
@@ -30,34 +62,41 @@ double mult_linear_matrix_vectors(double* horizontal_vec, double* vertical_vec, 
 	for (int i = 0; i < n2; i++)
 	{
 		matrix1_elem = *(horizontal_vec + i);
-		matrix2_elem = *(vertical_vec + i * n3);
+		matrix2_elem = *(vertical_vec + i);
 		result += matrix1_elem * matrix2_elem;
 	}
 	return result;
 }
 
-double* mult_matrix(double* matrix1, double* matrix2, int n1, int n2, int n3)
+double* mult_matrix(double* matrix_A, double* matrix_B, int N1, int N2, int N3)
 {
-	double* res_matrix = (double*)mallocs(sizeof(double) * n1 * n3);
-	double cur_cell = 0;
-	int cur_cell_ind = 0;
-	for (int row = 0; row < n1 * n2; row += n2)
+	double* matrix_Res = (double*)mallocs(N1 * N2 * sizeof(double));
+	for (int i = 0; i < N1; i++)
 	{
-		for (int col = 0; col < n3; col++)
+		for (int j = 0; j < N3; j++)
 		{
-			cur_cell = mult_linear_matrix_vectors(&matrix1[row], &matrix2[col], n2, n3);
-			res_matrix[cur_cell_ind] = cur_cell;
-			cur_cell_ind++;
+			int sum = 0;
+			for (int k = 0; k < N2; k++)
+			{
+				sum += matrix_A[i * N2 + k] * matrix_B[j * N2 + k];
+			}
+			matrix_Res[i * N3 + j] = sum;
 		}
 	}
-	return res_matrix;
+	return matrix_Res;
 }
 
-void print_array(double* array, int n)
+double* crt_default_matrix(int n, int k)
 {
-	for (int i = 0; i < n; i++)
-	{
-		printf("%lf ", array[i]);
+	double value = 1.0;
+	double *A = (double*) malloc(n * k * sizeof(double));
+	for (int i = 0; i < n * k; ++i) {
+		A[i] = value;
+		value += 1.0;
 	}
-	printf("\n");
+	return A;
+}
+
+double *create_matrix (int N, int M){
+
 }
