@@ -5,6 +5,7 @@
 #ifndef LAB_OC_3_MEM_OPS_H
 #define LAB_OC_3_MEM_OPS_H
 
+#include "mm_malloc.h"
 #include "stdio.h"
 
 void* reallocs(void* ptr, size_t size);
