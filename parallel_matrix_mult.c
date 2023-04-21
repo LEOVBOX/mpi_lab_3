@@ -65,33 +65,34 @@ MPI_Comm* create_comms(MPI_Comm grid_comm2d, int* dims, int coord)
 	return comms;
 }
 
-void data_broadcast(double* sub_matrix1, double* sub_matrix2, int rank_y, int rank_x, int* matrix1_summands,
-		int* matrix2_summands, int* dims, int N2, MPI_Comm* row_comm, MPI_Comm* col_comm)
+void data_broadcast(double* sub_matrix_A, double* sub_matrix_B, int rank_y, int rank_x, int* matrix_A_summands,
+		int* matrix_B_summands, int* dims, int N2, MPI_Comm* row_comm, MPI_Comm* col_comm)
 {
-	for (int i = 0; i < dims[0]; i++)
+	for (int i = 0; i < dims[0]; ++i)
 	{
+		//printf("data_broadcast dims[0] for: i = %d\n", i);
 		if (rank_y == i)
 		{
-			//printf("Try to bcast %d %d: matrix1_summands[rank_y] = %d\n", rank_x, rank_y, matrix1_summands[rank_y]);
-			MPI_Bcast(sub_matrix1, matrix1_summands[rank_y] * N2, MPI_DOUBLE, 0, row_comm[i]);
+			MPI_Bcast(sub_matrix_A, matrix_A_summands[rank_y] * N2, MPI_DOUBLE, 0, row_comm[i]);
 		}
 	}
 	for (int i = 0; i < dims[1]; ++i)
 	{
+		//printf("data_broadcast dims[1] for: i = %d\n", i);
 		if (rank_x == i)
 		{
-			MPI_Bcast(sub_matrix2, matrix2_summands[rank_x] * N2, MPI_DOUBLE, 0, col_comm[i]);
+			MPI_Bcast(sub_matrix_B, matrix_B_summands[rank_x] * N2, MPI_DOUBLE, 0, col_comm[i]);
 		}
 	}
 }
 
 void matrix_partition(double* Matrix, int K, int* lines_per_proc, double* sub_matrix, int rank_y,
-		int rank_x, int dim_y, MPI_Comm *comm)
+		int rank_x, int dim, MPI_Comm *comm)
 {
-	int* send_count = (int*)mallocs(dim_y * sizeof(int));
-	int* send_offset = (int*)mallocs(dim_y * sizeof(int));
+	int* send_count = (int*)mallocs(dim * sizeof(int));
+	int* send_offset = (int*)mallocs(dim * sizeof(int));
 
-	for (int i = 0; i < dim_y; i++)
+	for (int i = 0; i < dim; i++)
 	{
 		send_count[i] = lines_per_proc[i] * K;
 		if (i > 0)
@@ -105,25 +106,25 @@ void matrix_partition(double* Matrix, int K, int* lines_per_proc, double* sub_ma
 	}
 
 	// DEBUG BEGIN
-//	for (int i = 0; i < dim_y; i++)
-//	{
-//		printf("%d %d send_offset[%d]: %d\n", rank_x, rank_y, i, send_offset[i]);
-//		printf("%d %d send count[%d]: %d\n", rank_x, rank_y, i, send_count[i]);
-//	}
-//	printf("\n");
+	/*for (int i = 0; i < dim_y; i++)
+	{
+		printf("%d %d send_offset[%d]: %d\n", rank_x, rank_y, i, send_offset[i]);
+		printf("%d %d send count[%d]: %d\n", rank_x, rank_y, i, send_count[i]);
+	}
+	printf("\n");*/
 	// DEBUG END
 
-	int res = MPI_Scatterv(Matrix, send_count, send_offset, MPI_DOUBLE, sub_matrix,
+	MPI_Scatterv(Matrix, send_count, send_offset, MPI_DOUBLE, sub_matrix,
 			send_count[rank_y], MPI_DOUBLE, 0, comm[rank_x]);
 	// DEBUG BEGIN
-//	if (res == MPI_SUCCESS)
-//	{
-//		printf("Scatter SUCCESS! %d %d\n", rank_x, rank_y);
-//	}
-//	else
-//	{
-//		printf("FAIL %d %d\n", rank_x, rank_y);
-//	}
+	/*if (res == MPI_SUCCESS)
+	{
+		printf("Scatter SUCCESS! %d %d\n", rank_x, rank_y);
+	}
+	else
+	{
+		printf("FAIL %d %d\n", rank_x, rank_y);
+	}*/
 	// DEBUG END
 
 	free(send_count);
