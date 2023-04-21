@@ -10,24 +10,12 @@
 #define X 1
 #define Y 0
 
-int char_to_int(char a)
-{
-	if ((a > 57) || (a < 48))
-		return 0;
-	return a - '0';
-}
 
-int string_to_int(char* str)
+void print_int_array(int* array, int n)
 {
-	int result = 0;
-	int multiplier = 1;
-	int len = (int)strlen(str);
-	for (int i = len-1; i > -1; i--)
-	{
-		result += char_to_int(str[i]) * multiplier;
-		multiplier *= 10;
-	}
-	return result;
+	for (int i = 0; i < n; i++)
+		printf("%d ", array[i]);
+	printf("\n");
 }
 
 int read_input_file(char* file_path, double* matrix1, double* matrix2, int n1, int n2, int n3)
@@ -72,17 +60,17 @@ int main(int argc, char* argv[])
 	double start_time = MPI_Wtime();
 
 	// Чтение параметров матриц
-	int n1 = string_to_int(argv[argc - 3]);
+	int n1 = atoi(argv[1]);
 	//printf("n1 = %d\n", n1);
-	int n2 = string_to_int(argv[argc - 2]);
+	int n2 = atoi(argv[2]);
 	//printf("n2 = %d\n", n2);
-	int n3 = string_to_int(argv[argc - 1]);
+	int n3 = atoi(argv[3]);
 	//printf("n3 = %d\n", n3);
 
 
 	// Параметры решетки
 	int world_size, size_x, size_y, rank_x, rank_y, grid_comm_rank;
-	int coords[2];
+	int coords[2] = {0, 0};
 	int dims[2] = {0, 0};
 
 	// Создание решетки
@@ -106,11 +94,15 @@ int main(int argc, char* argv[])
 
 	// Массивы содержащие количество строк(колонок) матриц для каждого процесса решетки
 	int* matrix_A_summands = generate_summands(n1, dims[Y]);
+	printf("matrix_A_summands:\n");
+	print_int_array(matrix_A_summands, dims[Y]);
 	if (matrix_A_summands == NULL)
 	{
 		exit(-1);
 	}
 	int* matrix_B_summands = generate_summands(n3, dims[X]);
+	printf("matrix_B_summands:\n");
+	print_int_array(matrix_B_summands, dims[X]);
 	if (matrix_B_summands == NULL)
 	{
 		exit(-1);
@@ -130,13 +122,14 @@ int main(int argc, char* argv[])
 	double* tr_matrix_B = NULL;
 
 	double* sub_matrix_A = (double*)mallocs(matrix_A_summands[rank_y] * n2 * sizeof(double));
-	//printf("process %d: submatrix_A size = %d * n2\n", rank, matrix_A_summands[rank_y]);
-	double* sub_matrix_B = (double*)mallocs(matrix_A_summands[rank_x] * n2 * sizeof(double));
-	//printf("process %d: submatrix_B size = %d * n2\n", rank, matrix_A_summands[rank_y]);
+	printf("process %d: submatrix_A size = %d * n2\n", rank, matrix_A_summands[rank_y]);
+	double* sub_matrix_B = (double*)mallocs(matrix_B_summands[rank_x] * n2 * sizeof(double));
+	printf("process %d: submatrix_B size = %d * n2\n", rank, matrix_B_summands[rank_y]);
 
 	// Инициализация матриц
 	if (rank == ROOT)
 	{
+		printf("grid %d x %d\n", dims[X], dims[Y]);
 		matrix_A = (double*)mallocs(n1 * n2 * sizeof(double));
 		matrix_B = (double*)mallocs(n2 * n3 * sizeof(double));
 
@@ -161,7 +154,6 @@ int main(int argc, char* argv[])
 	}
 
 
-
 	/*printf("tr_matrix_B:\n");
 	print_matrix(tr_matrix_B, n3, n2);
 
@@ -172,18 +164,20 @@ int main(int argc, char* argv[])
 	{
 		matrix_partition(matrix_A, n2, matrix_A_summands, sub_matrix_A, rank_y, rank_x, dims[Y], col_comms);
 	}
+	printf("process %d: matrix_A partition done\n", rank);
 
 	if(rank_y == 0)
 	{
 		matrix_partition(tr_matrix_B, n2, matrix_B_summands, sub_matrix_B, rank_x, rank_y, dims[X], row_comms);
 	}
+	printf("process %d: matrix_B partition done\n", rank);
 	//printf("Partitoin success\n");
 
 	// Транслирование подматриц по столбцам (строкам) решетки
 	data_broadcast(sub_matrix_A, sub_matrix_B, rank_y, rank_x, matrix_A_summands, matrix_B_summands, dims, n2, row_comms, col_comms);
 
 	// DEBUG BEGIN
-//	printf("Data broadcast success\n");
+	printf("process %d: Data broadcast success\n", rank);
 //	printf("(x = %d, y = %d) subm1:\n", rank_x, rank_y);
 //	print_matrix(sub_matrix_A, matrix_A_summands[rank_y], n2);
 //	printf("\n");
