@@ -14,6 +14,7 @@ void print_array(double* array, int n)
 	printf("\n");
 }
 
+
 void scan_linear_matrix(double* matrix, int n, int k)
 {
 	for (int i = 0; i < n*k; i++)
@@ -24,7 +25,6 @@ void scan_linear_matrix(double* matrix, int n, int k)
 
 void fscan_linear_matrix(FILE* fd, double* matrix, int n, int k)
 {
-	double cur_num;
 	for (int i = 0; i < n*k; i++)
 	{
 		fscanf(fd, "%lf", &matrix[i]);
@@ -54,7 +54,7 @@ void transpose_linear_matrix(double* matrix, int rows, int cols, double* result)
 	}
 }
 
-double mult_linear_matrix_vectors(double* horizontal_vec, double* vertical_vec, int n2, int n3)
+double mult_linear_matrix_vectors(double* horizontal_vec, double* vertical_vec, int n2)
 {
 	double result = 0;
 	double matrix1_elem = 0;
@@ -70,7 +70,7 @@ double mult_linear_matrix_vectors(double* horizontal_vec, double* vertical_vec, 
 
 double* mult_matrix(double* matrix_A, double* matrix_B, int N1, int N2, int N3)
 {
-	double* matrix_Res = (double*)mallocs(N1 * N2 * sizeof(double));
+	double* matrix_Res = (double*)mallocs(N1 * N3 * sizeof(double));
 	for (int i = 0; i < N1; i++)
 	{
 		for (int j = 0; j < N3; j++)
@@ -86,6 +86,7 @@ double* mult_matrix(double* matrix_A, double* matrix_B, int N1, int N2, int N3)
 	return matrix_Res;
 }
 
+
 double* crt_default_matrix(int n, int k)
 {
 	double value = 1.0;
@@ -95,8 +96,4 @@ double* crt_default_matrix(int n, int k)
 		value += 1.0;
 	}
 	return A;
-}
-
-double *create_matrix (int N, int M){
-
 }

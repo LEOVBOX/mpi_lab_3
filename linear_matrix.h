@@ -9,7 +9,6 @@
 
 void scan_linear_matrix(double* matrix, int n, int k);
 void print_array(double* array, int n);
-double mult_linear_matrix_vectors(double* horizontal_vec, double* vertical_vec, int n);
 double* mult_matrix(double* matrix_A, double* matrix_B, int N1, int N2, int N3);
 void fscan_linear_matrix(FILE* fd, double* matrix, int n, int k);
 void transpose_linear_matrix(double* matrix, int rows, int cols, double* result);
